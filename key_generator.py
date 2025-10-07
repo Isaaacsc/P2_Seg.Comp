@@ -37,7 +37,6 @@ def trial_division(number: int) -> bool:
     return True
 
 def miller_rabin(number: int, k: int = 40) -> bool:
-    # escreve n-1 = 2^r * s
     r, s = 0, number - 1
     while s % 2 == 0:
         r += 1
