@@ -1,50 +1,140 @@
 import base64
-import key_generator
-import rsa_keypair
-from Crypto.Cipher import PKCS1_OAEP
-from Crypto.Hash import SHA256
-from Crypto.PublicKey import RSA
+from key_generator import generate_prime
+from rsa_keypair import rsa_key
+from signature import sign_file, verify_signature, export_key, load_key_file
+from rsa_oaep import rsa_encrypt_oaep, rsa_decrypt_oaep
 
-p, q = 0, 0
-while p == q:
-    p = key_generator.generate_prime()
-    q = key_generator.generate_prime()
+def main():
+    public_key = None
+    private_key = None
 
-public_key, private_key = rsa_keypair.rsa_key(p, q)
+    while True:
+        print("\n=====-===== RSA Signature Generator/Verifier =====-=====")
+        print(">>> 1. Generate RSA keys")
+        print(">>> 2. Encrypt file")
+        print(">>> 3. Decrypt file") 
+        print(">>> 4. Sign file")
+        print(">>> 5. Verify signature")
+        print(">>> 0. Exit")
+        
+        choice = input("Choose an option: ")
 
-# Constrói chaves RSA no formato da lib pycryptodome
-pub_rsa = RSA.construct((public_key[0], public_key[1]))   # (n, e)
-priv_rsa = RSA.construct((public_key[0], private_key[0], private_key[1]))  # (n, d, e)
-
-# Cria cifradores OAEP com SHA-256
-encryptor = PKCS1_OAEP.new(pub_rsa, hashAlgo=SHA256)
-decryptor = PKCS1_OAEP.new(priv_rsa, hashAlgo=SHA256)
-
-def process_file(input_filename: str, action: str) -> None:
-    if action == 'encrypt':
-        output_filename = input_filename.rsplit('.', 1)[0] + '_encrypt.txt'
-        with open(input_filename, 'rb') as infile, open(output_filename, 'w', encoding='ascii') as outfile:
-            plaintext = infile.read()
+        if choice == '1':
+            print("Generating primes p and q (1024 bits)...")
+            p = generate_prime(1024)
+            q = generate_prime(1024)
+            while p == q:
+                q = generate_prime(1024)
             
-            # Tamanho máximo de bloco para OAEP com SHA-256
-            key_size_bytes = pub_rsa.size_in_bytes()
-            hLen = SHA256.digest_size
-            max_block_size = key_size_bytes - 2 * hLen - 2
+            public_key, private_key = rsa_key(p, q)  #Public key (n, e), private key (d, p, q)
+            export_key(public_key, 'public_key.txt', 'public')
+            export_key(private_key, 'private_key.txt', 'private')
+            print("Keys generated and saved successfully!")
             
-            for i in range(0, len(plaintext), max_block_size):
-                block = plaintext[i:i+max_block_size]
-                encrypted_block = encryptor.encrypt(block)
-                b64_block = base64.b64encode(encrypted_block).decode('ascii')
-                outfile.write(b64_block + "\n")
+        elif choice == '2': #Encrypt with OAEP + RSA
+            if not public_key and not load_keys():
+                continue
+            
+            filename = input("File to encrypt (e.g teste.txt): ")
+            try:
+                with open(filename, 'rb') as f:
+                    plaintext = f.read()
+                
+                ciphertext = rsa_encrypt_oaep(plaintext, public_key)
+                n, e = public_key
+                ciphertext_bytes = ciphertext.to_bytes((n.bit_length() + 7) // 8, 'big')
+                ciphertext_b64 = base64.b64encode(ciphertext_bytes).decode('ascii')
+                
+                output_file = filename + '.encrypted'
+                with open(output_file, 'w') as f:
+                    f.write(ciphertext_b64)
+                
+                print(f"Encrypted file: {output_file}")
+                
+            except FileNotFoundError:
+                print("File not found!")
+            except Exception as e:
+                print(f"Encryption error: {e}")
+                
+        elif choice == '3': #Decrypt
+            if not private_key and not load_keys():
+                continue
+            
+            filename = input("Encrypted file (e.g test.txt.encrypted): ")
+            try:
+                with open(filename, 'r') as f:
+                    ciphertext_b64 = f.read().strip()
+                
+                ciphertext_bytes = base64.b64decode(ciphertext_b64)
+                ciphertext = int.from_bytes(ciphertext_bytes, 'big')
+                plaintext = rsa_decrypt_oaep(ciphertext, private_key)
+                
+                output_file = filename.replace('.encrypted', '_decrypted')
+                if output_file == filename:
+                    output_file = filename + '_decrypted'
+                
+                with open(output_file, 'wb') as f:
+                    f.write(plaintext)
+                
+                print(f"Decrypted file: {output_file}")
+                
+            except FileNotFoundError:
+                print("File not found!")
+            except Exception as e:
+                print(f"Decryption error: {e}")
+                
+        elif choice == '4': #Sign
+            if not private_key and not load_keys():
+                continue
+            
+            filename = input("File to sign (e.g document.txt): ")
+            try:
+                signature = sign_file(filename, private_key)
+                signature_file = filename + '.sig'
+                with open(signature_file, 'w') as f:
+                    f.write(signature)
+                print(f"Signature saved: {signature_file}")
+                
+            except FileNotFoundError:
+                print("File not found!")
+            except Exception as e:
+                print(f"Signing error: {e}")
+                
+        elif choice == '5': #Verification
+            if not public_key and not load_keys():
+                continue
+            
+            filename = input("Original file (e.g document.txt): ")
+            signature_file = input("Signature file (e.g document.txt.sig): ")
+            
+            try:
+                with open(signature_file, 'r') as f:
+                    signature_b64 = f.read().strip()
+                
+                is_valid = verify_signature(filename, signature_b64, public_key)
+                print("Signature VALID!" if is_valid else "Signature INVALID!")
+                    
+            except FileNotFoundError:
+                print("File not found!")
+            except Exception as e:
+                print(f"Verification error: {e}")
+                
+        elif choice == '0':
+            print("Exiting...")
+            break
+        else:
+            print("Invalid option!")
 
-    else:  # decrypt
-        output_filename = input_filename.rsplit('.', 1)[0] + '_decrypt.txt'
-        with open(input_filename, 'r', encoding='ascii') as infile, open(output_filename, 'wb') as outfile:
-            for line in infile:
-                if line.strip():
-                    encrypted_block = base64.b64decode(line.strip())
-                    decrypted_block = decryptor.decrypt(encrypted_block)
-                    outfile.write(decrypted_block)
+def load_keys():
+    global public_key, private_key
+    try:
+        public_key = load_key_file('public_key.txt', 'public')
+        private_key = load_key_file('private_key.txt', 'private')
+        print("Keys loaded from files.")
+        return True
+    except:
+        print("Error: Generate keys first (Option 1)")
+        return False
 
-process_file('document.txt', 'encrypt')
-process_file('document_encrypt.txt', 'decrypt')
+if __name__ == "__main__":
+    main()
