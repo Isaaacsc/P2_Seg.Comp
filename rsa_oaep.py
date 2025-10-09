@@ -85,5 +85,10 @@ def rsa_encrypt_oaep(message: bytes, public_key: tuple) -> int:
     return rsa_encrypt(em, public_key)
 
 def rsa_decrypt_oaep(ciphertext: int, private_key: tuple) -> bytes:
+    # private_key = (d, p, q) or (d, n)
+    if len(private_key) > 2:
+        n = private_key[1] * private_key[2]
+    else:
+        n = private_key[1] if len(private_key) > 1 else private_key[0]
     em = rsa_decrypt(ciphertext, private_key)
-    return oaep_decode(em, private_key[1] * private_key[2])
+    return oaep_decode(em, n)
