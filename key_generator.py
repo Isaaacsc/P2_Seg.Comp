@@ -55,7 +55,7 @@ def miller_rabin(number: int, k: int = 40) -> bool:
             return False
     return True
 
-def generate_prime(bits: int = 1024) -> int:
+def generate_prime(bits: int = 2048) -> int:
     while True:
         number = secrets.randbits(bits)
 
