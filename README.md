@@ -42,7 +42,7 @@ The system can:
 
 ### 1. Clone the repository
 bash
-git clone https://github.com/youruser/rsa-signature-tool.git
+git clone https://github.com/Isaaacsc/P2_Seg.comp.git
 cd rsa-signature-tool
 2. Run with graphical interface
 bash
@@ -80,10 +80,6 @@ Error Handling: Detects invalid keys, corrupted or tampered files
     python3 main.py
   → Choose option 5 to confirm authenticity.
 
-🧩 Performance
-Method	Avg. Time (ms)	Reduction
-Standard Decryption	125.4	–
-CRT Decryption	31.2	75% faster
 
 👥 Authors
 Name	ID	Role
